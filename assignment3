@@ -1,0 +1,145 @@
+import math
+
+import matplotlib.pyplot as mat;
+import numpy as nu;
+import pandas as pa;
+import scipy.stats as sci;
+import seaborn as se;
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn import metrics;
+import seaborn as sea;
+
+#reading data from .csv file
+df_dataset1=pa.read_csv("dataset1.csv");
+df_dataset2=pa.read_csv("dataset2.csv");
+
+#only taking data which has risk 1
+#df_dataset1=df_dataset1[df_dataset1["risk"]==1];
+
+
+# merging  dataset1 and dataset2
+#df_join_sample=df_dataset2.join(df_dataset1.set_index(["risk","month"],lsuffix="_x",rsuffix="_y",on=["risk","month"]));
+df_join_sample=pa.merge(df_dataset1,df_dataset2,on=['month'],how='inner')
+
+#df_join_sample=df_join_sample;
+df_join_sample=df_join_sample.dropna();
+df_join_sample.to_csv("dataset.csv");
+
+Q1=nu.percentile(df_join_sample['bat_landing_number'],25);
+Q3=nu.percentile(df_join_sample['bat_landing_number'],75);
+
+IQR=Q3-Q1;
+Lower_Limit=Q1-1.5*IQR;
+Upper_Limit=Q3+1.5*IQR;
+
+#deleting all zero value since we are not interested in zero bats
+df_join_sample=df_join_sample[df_join_sample['bat_landing_number']>0];
+df_join_sample=df_join_sample[(df_join_sample['bat_landing_number']<Upper_Limit)&(df_join_sample['bat_landing_number']>Lower_Limit)];
+
+#df_join_sample["rat_arrival_number"]=df_join_sample["rat_arrival_number"].apply(nu.log);
+#df_join_sample["food_availability"]=df_join_sample["food_availability"].apply(nu.log);
+df_join_sample=df_join_sample[['habit','rat_arrival_number','food_availability','risk','season','reward','month','bat_landing_number']];
+
+df_join_sample=df_join_sample.dropna();
+
+
+# finding coorelation
+df_corr=df_join_sample.corr(numeric_only=True);
+
+#generating heatmap
+df_heatmap=sea.heatmap(df_corr,center=0,annot=True);
+mat.show();
+
+#finding outliers
+#mat.boxplot(df_join_sample['food_availability']);
+#mat.show();
+#mat.boxplot(df_join_sample['rat_arrival_number']);
+#mat.show();
+mat.boxplot(df_join_sample['bat_landing_number']);
+mat.show();
+
+
+
+#visualizing data
+mat.scatter(df_join_sample['month'],df_join_sample['bat_landing_number'],label='bat landing');
+mat.scatter(df_join_sample['month'],df_join_sample['rat_arrival_number'],label='rat arrival');
+mat.scatter(df_join_sample['month'],df_join_sample['risk'],label='risk');
+mat.legend();
+mat.show();
+
+#dividing data into spring and winter
+df_winter_season=df_join_sample[df_join_sample["season"]==0];
+df_spring_season=df_join_sample[df_join_sample["season"]==1];
+
+#dividing data into risk and no risk
+df_winter_season_risk=df_winter_season[df_winter_season['risk']==0];
+df_winter_season_no_risk=df_winter_season[df_winter_season['risk']==1];
+
+df_spring_season_risk=df_spring_season[df_spring_season['risk']==0];
+df_spring_season_no_risk=df_spring_season[df_spring_season['risk']==1];
+
+#plotting graph for proper visulaization
+mat.scatter(df_winter_season['rat_arrival_number'],df_winter_season['bat_landing_number']);
+mat.title("winter season");
+mat.xlabel("rat arrival number");
+mat.ylabel("bat landing number");
+mat.show();
+mat.scatter(df_spring_season['rat_arrival_number'],df_spring_season['bat_landing_number']);
+mat.title("spring season");
+mat.xlabel("rat arrival number");
+mat.ylabel("bat landing number");
+mat.show();
+#mat.boxplot(df_winter_season);
+#mat.show();
+#mat.boxplot(df_spring_season);
+#mat.show();
+#print(df_risk['risk']);
+
+
+
+#plotting data for visulalizing into two seperate diagram
+
+#se.relplot(df_join_sample,x='rat_arrival_number',y='bat_landing_number',col='season',hue='food_availability');
+se.relplot(df_join_sample,x='rat_arrival_number',y='bat_landing_number',col='season',hue="food_availability");
+mat.show();
+
+#model=LinearRegression();
+#model.fit(df_join_sample['rat_arrival_number'],df_join_sample['risk']);
+
+df_join_sample=df_join_sample.dropna();
+#linear regression model
+
+X=df_join_sample[['rat_arrival_number']].values;
+Y=df_join_sample['bat_landing_number'].values
+
+x_train,x_test,y_train,y_test=train_test_split(X,Y,train_size=0.40,random_state=0);
+
+model=LinearRegression();
+model.fit(x_train,y_train);
+
+slope=model.coef_;
+intercept=model.intercept_;
+print("slope is %f " %(slope));
+print("intercept is %f " %(intercept));
+
+y_predict=model.predict(x_test);
+y_base=nu.mean(y_train);
+y_pred_base=[y_base]*len(y_test);
+data_dictionary={"Actual":y_test,"Predicted":y_pred_base};
+data_dataframe=pa.DataFrame(data_dictionary);
+
+mae=metrics.mean_absolute_error(y_test,y_pred_base);
+mse=metrics.mean_squared_error(y_test,y_pred_base);
+rmse=math.sqrt(mse);
+nrmse=(rmse/(max(y_test)-min(y_test)));
+
+print("mae is %f , mse is %f, rmse is %f, nrmse is %f " %(mae,mse,rmse,nrmse));
+
+mat.title("graph showing dependent bat landing number and independent rat arrival number ")
+mat.xlabel("rat arrival number");
+mat.ylabel("bat landing number");
+mat.scatter(x_test,y_test);
+mat.plot(x_test,y_predict);
+mat.plot(x_test,y_pred_base);
+mat.show();
