@@ -1,31 +1,66 @@
-import math
-
+import math as ma;
 import matplotlib.pyplot as mat;
 import numpy as nu;
 import pandas as pa;
 import scipy.stats as sci;
+
 import seaborn as se;
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn import metrics;
 import seaborn as sea;
+import statsmodels.api as stat;
+from sklearn.preprocessing import PowerTransformer;
+from sklearn.preprocessing import StandardScaler;
 
-#reading data from .csv file
+#Reading data from .csv file
 df_dataset1=pa.read_csv("dataset1.csv");
 df_dataset2=pa.read_csv("dataset2.csv");
 
-#only taking data which has risk 1
-#df_dataset1=df_dataset1[df_dataset1["risk"]==1];
 
 
-# merging  dataset1 and dataset2
-#df_join_sample=df_dataset2.join(df_dataset1.set_index(["risk","month"],lsuffix="_x",rsuffix="_y",on=["risk","month"]));
-df_join_sample=pa.merge(df_dataset1,df_dataset2,on=['month'],how='inner')
+#Calculate total number of bats landing number
+no_of_bats=0;
+no_of_bats=sum(df_dataset2['bat_landing_number'].values);
 
-#df_join_sample=df_join_sample;
+print("total number of bats landing is", no_of_bats);
+
+#Calculate total number of rats arrival number
+no_of_rats=0;
+no_of_rats=sum(df_dataset2['rat_arrival_number'].values);
+print("total number of rats arrival is" , no_of_rats);
+
+
+# Merge  dataset1 and dataset2
+df_join_sample = pa.merge(df_dataset1, df_dataset2, on=['month'], how='inner')
+
+
+
+#Data Wrangling
+
+
+
+#delete null values
 df_join_sample=df_join_sample.dropna();
+
+#Write data to .csv file
 df_join_sample.to_csv("dataset.csv");
 
+#Delete bat_landing_number when rat_arrival_number is zero
+df_join_sample=df_join_sample[df_join_sample['rat_arrival_number']!=0];
+
+#Round 'food availability' column
+df_join_sample['round_food_availability']=df_join_sample['food_availability'].round();
+
+
+#Create boxplot of bat_landing_number (finding whether data sample has outliers or not)
+
+sea.boxplot(df_join_sample['bat_landing_number']);
+mat.title("before outliers removed");
+mat.xlabel("bat landing number");
+mat.show();
+
+#Calulate lower and upper limit
 Q1=nu.percentile(df_join_sample['bat_landing_number'],25);
 Q3=nu.percentile(df_join_sample['bat_landing_number'],75);
 
@@ -33,53 +68,64 @@ IQR=Q3-Q1;
 Lower_Limit=Q1-1.5*IQR;
 Upper_Limit=Q3+1.5*IQR;
 
-#deleting all zero value since we are not interested in zero bats
+#Delete all zero value since we are not interested when bats are zero
 df_join_sample=df_join_sample[df_join_sample['bat_landing_number']>0];
-df_join_sample=df_join_sample[(df_join_sample['bat_landing_number']<Upper_Limit)&(df_join_sample['bat_landing_number']>Lower_Limit)];
-
-#df_join_sample["rat_arrival_number"]=df_join_sample["rat_arrival_number"].apply(nu.log);
-#df_join_sample["food_availability"]=df_join_sample["food_availability"].apply(nu.log);
-df_join_sample=df_join_sample[['habit','rat_arrival_number','food_availability','risk','season','reward','month','bat_landing_number']];
-
-df_join_sample=df_join_sample.dropna();
 
 
-# finding coorelation
-df_corr=df_join_sample.corr(numeric_only=True);
+#Omitt outliers
+df_join_sample=df_join_sample[df_join_sample['bat_landing_number']<=80];
 
-#generating heatmap
-df_heatmap=sea.heatmap(df_corr,center=0,annot=True);
-mat.show();
-
-#finding outliers
-#mat.boxplot(df_join_sample['food_availability']);
-#mat.show();
-#mat.boxplot(df_join_sample['rat_arrival_number']);
-#mat.show();
+#Create boxplot after omitting outliers
+mat.title("after outliers has been removed");
+mat.xlabel("bat landing number");
 mat.boxplot(df_join_sample['bat_landing_number']);
 mat.show();
 
+#Re-creating dataframe with only specific variables
+df_join_sample=df_join_sample[['habit','rat_arrival_number','round_food_availability','risk','season','reward','month','bat_landing_number']];
+
+#Drop null values
+df_join_sample=df_join_sample.dropna();
 
 
-#visualizing data
+# Data Exploration
+
+
+#Find coorelation
+df_corr=df_join_sample.corr(numeric_only=True);
+
+#Generate heatmap
+df_heatmap=sea.heatmap(df_corr,center=0,annot=True);
+mat.show();
+
+#Generate differential statistics report
+print(df_join_sample.describe());
+
+#Displays number of rows and cols and display datatypes
+print(df_join_sample.info());
+
+
+
+#Visualizing data using scatter plot
 mat.scatter(df_join_sample['month'],df_join_sample['bat_landing_number'],label='bat landing');
 mat.scatter(df_join_sample['month'],df_join_sample['rat_arrival_number'],label='rat arrival');
 mat.scatter(df_join_sample['month'],df_join_sample['risk'],label='risk');
+mat.xlabel("month");
 mat.legend();
 mat.show();
 
-#dividing data into spring and winter
+#Divide data into spring and winter
 df_winter_season=df_join_sample[df_join_sample["season"]==0];
 df_spring_season=df_join_sample[df_join_sample["season"]==1];
 
-#dividing data into risk and no risk
+#Divide data into risk and no risk
 df_winter_season_risk=df_winter_season[df_winter_season['risk']==0];
 df_winter_season_no_risk=df_winter_season[df_winter_season['risk']==1];
 
 df_spring_season_risk=df_spring_season[df_spring_season['risk']==0];
 df_spring_season_no_risk=df_spring_season[df_spring_season['risk']==1];
 
-#plotting graph for proper visulaization
+#Visualizing data using scatter plot
 mat.scatter(df_winter_season['rat_arrival_number'],df_winter_season['bat_landing_number']);
 mat.title("winter season");
 mat.xlabel("rat arrival number");
@@ -90,56 +136,269 @@ mat.title("spring season");
 mat.xlabel("rat arrival number");
 mat.ylabel("bat landing number");
 mat.show();
-#mat.boxplot(df_winter_season);
-#mat.show();
-#mat.boxplot(df_spring_season);
-#mat.show();
-#print(df_risk['risk']);
 
 
 
-#plotting data for visulalizing into two seperate diagram
 
-#se.relplot(df_join_sample,x='rat_arrival_number',y='bat_landing_number',col='season',hue='food_availability');
-se.relplot(df_join_sample,x='rat_arrival_number',y='bat_landing_number',col='season',hue="food_availability");
+#Visualizing data using relplot
+
+se.relplot(df_join_sample,x='rat_arrival_number',y='bat_landing_number',col='season',hue="round_food_availability");
 mat.show();
 
-#model=LinearRegression();
-#model.fit(df_join_sample['rat_arrival_number'],df_join_sample['risk']);
-
+#Drop null value
 df_join_sample=df_join_sample.dropna();
-#linear regression model
 
-X=df_join_sample[['rat_arrival_number']].values;
-Y=df_join_sample['bat_landing_number'].values
+# Build multiple linear regression model
 
+#Seperate dependent and independent variables
+X1=df_join_sample[['rat_arrival_number']];
+Y1=df_join_sample['bat_landing_number'];
+
+X2=df_join_sample[['round_food_availability']];
+Y2=df_join_sample['bat_landing_number'];
+
+X3=df_join_sample[['risk']];
+Y3=df_join_sample['bat_landing_number'];
+
+#Split X and Y samples into train and test samples
+x1_train,x1_test,y1_train,y1_test=train_test_split(X1,Y1,train_size=0.40,random_state=0);
+
+x2_train,x2_test,y2_train,y2_test=train_test_split(X2,Y2,train_size=0.40,random_state=0);
+
+x3_train,x3_test,y3_train,y3_test=train_test_split(X3,Y3,train_size=0.40,random_state=0);
+
+#Apply linear regression model
+model1=LinearRegression();
+model1.fit(x1_train,y1_train);
+
+#Apply linear regression model
+model2=LinearRegression();
+model2.fit(x2_train,y2_train);
+
+#Apply linear regression model
+model3=LinearRegression();
+model3.fit(x3_train,y3_train);
+
+#Predict data from x_test and calculate mean
+y1_predict=model1.predict(x1_test);
+y1_base=nu.mean(y1_train);
+
+#Predict data from x_test and calculate mean
+y2_predict=model2.predict(x2_test);
+y2_base=nu.mean(y2_train);
+
+#Predict data from x_test and calculate mean
+y3_predict=model3.predict(x3_test);
+y3_base=nu.mean(y3_train);
+
+# visualize data on scatter plot
+mat.title("graph showing dependent bat landing number and independent rat arrival number ")
+mat.xlabel("rat arrival number");
+mat.ylabel("bat landing number");
+mat.scatter(x1_test,y1_test);
+mat.plot(x1_test,y1_predict);
+
+mat.show();
+
+# visualize data on scatter plot
+mat.title("graph showing dependent bat landing number and independent rat arrival number ")
+mat.xlabel("rat arrival number");
+mat.ylabel("bat landing number");
+mat.scatter(x2_test,y2_test);
+mat.plot(x2_test,y2_predict);
+mat.show();
+
+# visualize data on scatter plot
+mat.title("graph showing dependent bat landing number and independent rat arrival number ")
+mat.xlabel("rat arrival number");
+mat.ylabel("bat landing number");
+mat.scatter(x3_test,y3_test);
+mat.plot(x3_test,y3_predict);
+mat.show();
+
+
+#Seperate dependent and independent variables
+X=df_join_sample[['rat_arrival_number','round_food_availability','risk']];
+Y=df_join_sample['bat_landing_number'];
+
+#Split X and Y samples into train and test samples
 x_train,x_test,y_train,y_test=train_test_split(X,Y,train_size=0.40,random_state=0);
 
+#Apply linear regression model
 model=LinearRegression();
 model.fit(x_train,y_train);
 
-slope=model.coef_;
-intercept=model.intercept_;
-print("slope is %f " %(slope));
-print("intercept is %f " %(intercept));
 
+#Predict data from x_test and calculate mean
 y_predict=model.predict(x_test);
 y_base=nu.mean(y_train);
-y_pred_base=[y_base]*len(y_test);
-data_dictionary={"Actual":y_test,"Predicted":y_pred_base};
-data_dataframe=pa.DataFrame(data_dictionary);
 
-mae=metrics.mean_absolute_error(y_test,y_pred_base);
-mse=metrics.mean_squared_error(y_test,y_pred_base);
-rmse=math.sqrt(mse);
+
+# Calculate mean absolute error, mean squared error, rooted mean squared error, normal rooted mean squared error
+mae=metrics.mean_absolute_error(y_test,y_predict);
+mse=metrics.mean_squared_error(y_test,y_predict);
+rmse=ma.sqrt(mse);
 nrmse=(rmse/(max(y_test)-min(y_test)));
 
 print("mae is %f , mse is %f, rmse is %f, nrmse is %f " %(mae,mse,rmse,nrmse));
 
-mat.title("graph showing dependent bat landing number and independent rat arrival number ")
-mat.xlabel("rat arrival number");
-mat.ylabel("bat landing number");
-mat.scatter(x_test,y_test);
-mat.plot(x_test,y_predict);
-mat.plot(x_test,y_pred_base);
+#Create base for the model
+y_pred_base=[y_base]*len(y_test);
+data_dictionary={"Actual":y_test,"Predicted":y_pred_base};
+data_dataframe=pa.DataFrame(data_dictionary);
+print(data_dataframe);
+
+# Calculate mean absolute error, mean squared error, rooted mean squared error, normal rooted mean squared error
+mae_base=metrics.mean_absolute_error(y_test,y_pred_base);
+mse_base=metrics.mean_squared_error(y_test,y_pred_base);
+rmse_base=ma.sqrt(mse);
+nrmse_base=(rmse/(max(y_test)-min(y_test)));
+
+print("mae_base is %f , mse_base is %f, rmse_base is %f, nrmse_base is %f " %(mae_base,mse_base,rmse_base,nrmse_base));
+
+# visualize data on scatter plot
+#mat.title("graph showing dependent bat landing number and independent rat arrival number ")
+#mat.xlabel("rat arrival number");
+#mat.ylabel("bat landing number");
+#mat.scatter(x_test,y_test);
+#mat.plot(x_test,y_predict);
+#mat.plot(x_test,y_pred_base);
+#mat.show();
+
+# Seperate dependant and independent variables
+
+X = df_join_sample[['rat_arrival_number', 'round_food_availability', 'risk']];
+Y = df_join_sample['bat_landing_number'];
+
+#Apply multiple linear regression
+
+X=stat.add_constant(X);
+x_model=stat.OLS(Y,X).fit();
+pred=x_model.predict(X);
+x_summary=x_model.summary();
+print("  ");
+print("  ");
+print("  ");
+print("******************************************")
+print("orginal multiple linear regression model summary");
+print("******************************************")
+print("  ");
+print("  ");
+print("  ");
+print(x_summary);
+print("  ");
+print("  ");
+print("  ");
+print("******************************************")
+
+#Optimisation -1 create linearity
+
+#Apply non-linear transformation
+df_join_sample['rat_arrival_number_log']=df_join_sample['rat_arrival_number'].apply(nu.log);
+
+df_join_sample=df_join_sample[['habit','rat_arrival_number','rat_arrival_number_log','round_food_availability','risk','season','reward','month','bat_landing_number']]
+
+#Drop null values
+df_join_sample=df_join_sample.dropna();
+
+#Visualize the effect of the transformation
+mat.scatter(df_join_sample['rat_arrival_number_log'],df_join_sample['bat_landing_number'],color='red');
+mat.title(' transformed rat_arrival_number');
+mat.xlabel('rat_arrival_number_log');
+mat.ylabel('bat_landing_number');
 mat.show();
+
+
+
+
+#Re-run multiple linear regression with the transferred value
+
+#Seperate dependant variable and independant variable
+X=df_join_sample[['rat_arrival_number_log','round_food_availability','risk']];
+Y=df_join_sample['bat_landing_number'];
+
+#Build and evaluate multiple linear regression
+X=stat.add_constant(X);
+x_model=stat.OLS(Y,X).fit();
+pred=x_model.predict(X);
+x_summary=x_model.summary();
+print("model after applying log tranform:")
+print("******************************************")
+print("  ");
+print("  ");
+print("  ");
+print(x_summary);
+print("  ");
+print("  ");
+print("  ");
+print("******************************************")
+
+
+#Optimisation-2 Power Transformer
+
+
+
+#Seperate dependant and independant variable
+X=df_join_sample[['rat_arrival_number','round_food_availability','risk']];
+Y=df_join_sample['bat_landing_number'];
+
+
+
+#Initialize and declare function
+hold=PowerTransformer();
+
+#Apply the transformer to make all explanatory variables for look like Bell_Curve
+stan_x=hold.fit_transform(X.values);
+
+#Restore columns and rows from X variable
+stan_df=pa.DataFrame(stan_x,index=X.index,columns=X.columns);
+
+
+#Create multiple linear Regression model
+stan_df=stat.add_constant(stan_df);
+model=stat.OLS(Y,stan_df).fit();
+pred=model.predict(stan_df);
+model_summary=model.summary();
+print("model after Power Transformer  has been applied");
+print("******************************************")
+print("  ");
+print("  ");
+print("  ");
+print(model_summary);
+print("  ");
+print("  ");
+print("  ");
+print("******************************************")
+
+
+#Optimisation -3 Z-Score Transformation
+
+#Seperate dependant and independant variable
+X=df_join_sample[['rat_arrival_number','round_food_availability','risk']];
+Y=df_join_sample['bat_landing_number'];
+
+
+#Initialize and declare function
+hold=StandardScaler();
+
+#Apply Z-score transformation
+stan_x=hold.fit_transform(X.values);
+
+#Create dataframe which holds only independant variables
+stan_df=pa.DataFrame(stan_x,index=X.index,columns=X.columns);
+
+#Create Multiple linear Regression model:
+stan_df=stat.add_constant(stan_df);
+model=stat.OLS(Y,stan_df).fit();
+pred=model.predict(stan_df);
+model_summary=model.summary();
+print("model after Z-Score Transformer  has been applied");
+print("******************************************")
+print("  ");
+print("  ");
+print("  ");
+print(model_summary);
+print("  ");
+print("  ");
+print("  ");
+print("******************************************")
